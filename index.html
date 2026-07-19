@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收款通知輔助小工具 V2</title>
+    <style>
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 15px;
+        }
+        textarea {
+            resize: vertical;
+        }
+        .hint {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        hr {
+            border: 0;
+            border-top: 2px dashed #ddd;
+            margin: 30px 0;
+        }
+        .result-card {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .result-text {
+            white-space: pre-wrap;
+            font-size: 15px;
+            line-height: 1.5;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .copy-btn {
+            background-color: #2ecc71;
+            width: auto;
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        .copy-btn:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📝 收款通知輔助小工具</h1>
+
+    <div class="form-group">
+        <label>自訂區間日期</label>
+        <input type="text" id="dateRange" placeholder="例如：7/12-7/18" value="7/12-7/18">
+    </div>
+
+    <div class="form-group">
+        <label>❶ 預設上半部內容 (可隨時更改)</label>
+        <div class="hint">請保留 <b>{Name}</b> 和 <b>{Date}</b> 作為系統自動替換名字與日期的標記。</div>
+        <textarea id="topTemplate" rows="5">
+感謝{Name}捧場同樂🥳～
+這次是{Date}的明細
+以下確認沒問題的話，
+再麻煩line pay或轉帳給我哦！</textarea>
+    </div>
+
+    <div class="form-group">
+        <label>❷ 請貼上所有明細 (系統會用每行「第一個空格前」的文字當作名字分類)</label>
+        <div class="hint">範例格式：小Lo 七龍珠-精彩戰鬥回憶錄- / 放棄小賞：250*1=250</div>
+        <textarea id="rawDetails" rows="8" placeholder="請將所有人的明細貼在這裡..."></textarea>
+    </div>
+
+    <button onclick="generateResult()">🚀 產生最終收款通知</button>
+
+    <hr>
+
+    <div id="outputArea">
+        </div>
+</div>
+
+<script>
+    function generateResult() {
+        const dateRange = document.getElementById('dateRange').value.trim();
+        const topTemplate = document.getElementById('topTemplate').value.trim();
+        const rawDetails = document.getElementById('rawDetails').value.trim();
+        const outputArea = document.getElementById('outputArea');
+
+        outputArea.innerHTML = ''; // 清空上一次結果
+
+        if (!rawDetails) {
+            alert('請貼上明細資料！');
+            return;
+        }
+
+        const lines = rawDetails.split('\n');
+        const groupedData = {};
+
+        // 逐行解析資料
+        lines.forEach(line => {
+            line = line.trim();
+            if (!line) return; // 略過空行
+
+            // 取得第一個空格，用來切分名字
+            const firstSpaceIndex = line.indexOf(' ');
+            if (firstSpaceIndex === -1) return; // 格式不符略過
+
+            const name = line.substring(0, firstSpaceIndex).trim();
+            
+            // 找出最後一個 '=' 符號後的數字，作為該項目的金額
+            const lastEqualIndex = line.lastIndexOf('=');
+            let itemTotal = 0;
+            if (lastEqualIndex !== -1) {
+                // 移除千位數逗號，轉換成整數
+                const moneyStr = line.substring(lastEqualIndex + 1).replace(/,/g, '').trim();
+                itemTotal = parseInt(moneyStr) || 0;
+            }
+
+            // 如果該名字還沒建立資料，則初始化
+            if (!groupedData[name]) {
+                groupedData[name] = {
+                    items: [],
+                    totals: []
+                };
+            }
+
+            groupedData[name].items.push(line);
+            groupedData[name].totals.push(itemTotal);
+        });
+
+        // 如果沒有解析出任何資料
+        if (Object.keys(groupedData).length === 0) {
+            outputArea.innerHTML = '<div style="color:red; text-align:center;">解析失敗，請確認明細格式是否正確（名字與明細之間需有空格，金額在最後一個等號後面）。</div>';
+            return;
+        }
+
+        // 產生每個人的最終區塊
+        for (const [name, data] of Object.entries(groupedData)) {
+            // 替換上半部變數
+            let topText = topTemplate.replace(/{Name}/g, name).replace(/{Date}/g, dateRange);
+            
+            // 組合中間明細
+            let middleText = data.items.join('\n');
+            
+            // 計算底部金額與公式邏輯
+            let bottomText = '';
+            let grandTotal = data.totals.reduce((a, b) => a + b, 0);
+            let formattedTotal = grandTotal.toLocaleString('en-US');
+
+            if (data.items.length === 1) {
+                // 如果只有一筆明細，直接顯示總金額
+                bottomText = formattedTotal;
+            } else {
+                // 如果有多筆明細，顯示加總公式
+                let sumString = data.totals.join('+');
+                bottomText = `${sumString}=${formattedTotal}`;
+            }
+
+            // 組合最終完整文字 (加上分隔線)
+            let finalOutput = `${topText}\n—————————————\n${middleText}\n—————————————\n${bottomText}`;
+
+            // 建立 UI 卡片
+            createResultCard(name, finalOutput);
+        }
+    }
+
+    function createResultCard(name, text) {
+        const outputArea = document.getElementById('outputArea');
+        
+        const card = document.createElement('div');
+        card.className = 'result-card';
+
+        const textDiv = document.createElement('div');
+        textDiv.className = 'result-text';
+        textDiv.textContent = text;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = `📋 複製 ${name} 的明細`;
+        copyBtn.onclick = function() {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✅ 已複製！';
+                copyBtn.style.backgroundColor = '#27ae60';
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.backgroundColor = '#2ecc71';
+                }, 2000);
+            }).catch(err => {
+                alert('複製失敗，請手動選取複製');
+            });
+        };
+
+        card.appendChild(textDiv);
+        card.appendChild(copyBtn);
+        outputArea.appendChild(card);
+    }
+</script>
+
+</body>
+</html>

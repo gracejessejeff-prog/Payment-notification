@@ -34,6 +34,17 @@
             margin-bottom: 8px;
             color: #2c3e50;
         }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+        }
         input[type="text"], textarea {
             width: 100%;
             padding: 10px;
@@ -46,10 +57,16 @@
         textarea {
             resize: vertical;
         }
+        textarea:disabled {
+            background-color: #f0f0f0;
+            color: #999;
+            cursor: not-allowed;
+        }
         .hint {
             font-size: 13px;
             color: #7f8c8d;
             margin-top: 5px;
+            margin-bottom: 8px;
         }
         button {
             background-color: #3498db;
@@ -123,6 +140,16 @@
         <textarea id="rawDetails" rows="8" placeholder="請將所有人的明細貼在這裡..."></textarea>
     </div>
 
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="useClosing" onchange="toggleClosing()">
+            ❸ 附上結語 (選填)
+        </label>
+        <div class="hint">勾選後，結語會接在每個人通知的最下方，內容可自行修改。</div>
+        <textarea id="closingText" rows="3" disabled>—————————————
+滿額加碼：帳單發出24小時內結清，加送【滿額1抽】～</textarea>
+    </div>
+
     <button onclick="generateResult()">🚀 產生最終收款通知</button>
 
     <hr>
@@ -132,10 +159,18 @@
 </div>
 
 <script>
+    // 勾選時才啟用結語輸入框
+    function toggleClosing() {
+        const checked = document.getElementById('useClosing').checked;
+        document.getElementById('closingText').disabled = !checked;
+    }
+
     function generateResult() {
         const dateRange = document.getElementById('dateRange').value.trim();
         const topTemplate = document.getElementById('topTemplate').value.trim();
         const rawDetails = document.getElementById('rawDetails').value.trim();
+        const useClosing = document.getElementById('useClosing').checked;
+        const closingText = document.getElementById('closingText').value.trim();
         const outputArea = document.getElementById('outputArea');
 
         outputArea.innerHTML = ''; // 清空上一次結果
@@ -210,6 +245,11 @@
 
             // 組合最終完整文字 (加上分隔線)
             let finalOutput = `${topText}\n—————————————\n${middleText}\n—————————————\n${bottomText}`;
+
+            // 有勾選且內容不為空，才附上結語
+            if (useClosing && closingText) {
+                finalOutput += `\n${closingText}`;
+            }
 
             // 建立 UI 卡片
             createResultCard(name, finalOutput);
